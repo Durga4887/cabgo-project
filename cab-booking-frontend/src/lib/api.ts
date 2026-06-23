@@ -57,7 +57,8 @@ export type Booking = {
 export type BookingCreatePayload = {
   pickup_location: string
   dropoff_location: string
-  ride_date: string
+  ride_date?: string | null
+  distance_km?: number | null
   notes?: string | null
 }
 
