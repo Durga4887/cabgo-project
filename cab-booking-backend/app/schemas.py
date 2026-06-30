@@ -1,7 +1,15 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, PositiveFloat
+from pydantic import (
+	BaseModel,
+	ConfigDict,
+	EmailStr,
+	Field,
+	PositiveFloat,
+	field_validator,
+	model_validator,
+)
 
 
 class UserRegister(BaseModel):
@@ -57,8 +65,34 @@ class UserProfileUpdate(BaseModel):
 class BookingCreate(BaseModel):
 	pickup_location: str = Field(min_length=1, max_length=255)
 	dropoff_location: str = Field(min_length=1, max_length=255)
-	ride_date: datetime
+	ride_date: datetime | None = Field(
+		default=None,
+		description="Optional. Defaults to the current server time when omitted.",
+	)
+	distance_km: float | None = Field(
+		default=None,
+		ge=0,
+		le=2000,
+		description="Optional client-estimated trip distance, used to compute the fare estimate.",
+	)
 	notes: str | None = Field(default=None, max_length=1000)
+
+	@field_validator("pickup_location", "dropoff_location")
+	@classmethod
+	def _clean_location(cls, value: str) -> str:
+		cleaned = value.strip()
+
+		if len(cleaned) < 3:
+			raise ValueError("Please enter a valid location (at least 3 characters).")
+
+		return cleaned
+
+	@model_validator(mode="after")
+	def _check_locations_differ(self) -> "BookingCreate":
+		if self.pickup_location.casefold() == self.dropoff_location.casefold():
+			raise ValueError("Pickup and destination locations cannot be the same.")
+
+		return self
 
 
 class WalletTransaction(BaseModel):

@@ -36,6 +36,32 @@ ACTIVE_BOOKING_STATUSES = {"pending", "confirmed", "ongoing"}
 TERMINAL_BOOKING_STATUSES = {"completed", "cancelled"}
 VALID_BOOKING_STATUSES = ACTIVE_BOOKING_STATUSES | TERMINAL_BOOKING_STATUSES
 
+# Fare estimation. Mirrors the same constants used by the frontend
+# (src/lib/geo.ts) so the quoted estimate and the booked fare line up.
+DEFAULT_FARE = 150.0
+BASE_FARE = 40.0
+PER_KM_RATE = 12.0
+MIN_FARE = 60.0
+MAX_AUTO_FARE = 5000.0
+
+
+def _estimate_fare(distance_km: float | None) -> float:
+	"""Estimate the ride fare from an optional client-supplied distance.
+
+	When no distance is supplied (e.g. an older client that hasn't been
+	updated yet), this falls back to the original flat fare so existing
+	integrations keep working unchanged.
+	"""
+
+	if distance_km is None or distance_km <= 0:
+		return DEFAULT_FARE
+
+	fare = BASE_FARE + (distance_km * PER_KM_RATE)
+	fare = max(fare, MIN_FARE)
+	fare = min(fare, MAX_AUTO_FARE)
+
+	return round(fare, 2)
+
 
 def _get_or_create_wallet(db: Session, user_id: int) -> Wallet:
     wallet = db.query(Wallet).filter(Wallet.user_id == user_id).first()
@@ -316,10 +342,10 @@ def create_booking(
         user_id=current_user.id,
         pickup_location=payload.pickup_location,
         dropoff_location=payload.dropoff_location,
-        ride_date=payload.ride_date,
+        ride_date=payload.ride_date or datetime.utcnow(),
         notes=payload.notes,
         status="pending",
-        fare_amount=150.0,
+        fare_amount=_estimate_fare(payload.distance_km),
     )
 
     db.add(booking)
